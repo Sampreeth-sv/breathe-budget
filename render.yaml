@@ -1,0 +1,10 @@
+# One-click alternative host: https://render.com -> New -> Blueprint -> pick this repo.
+services:
+  - type: web
+    name: breathe-budget
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false   # paste your key in the Render dashboard (optional)

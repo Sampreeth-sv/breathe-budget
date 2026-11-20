@@ -1,0 +1,10 @@
+.git
+.github
+.env
+.env.*
+tests
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+README.md
