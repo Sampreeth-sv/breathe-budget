@@ -104,7 +104,7 @@ async def build_advice(
             aqi,
             rules.RISK_LABELS[level],
             _household_summary(req.household),
-            [a.model_dump() for a in plan.actions],
+            [a.model_dump() for a in plan.actions[:5]],
             plan.combined_reduction_pct,
         )
         generated = clean_summary(await explainer.summarise(facts))

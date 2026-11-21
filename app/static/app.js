@@ -3,12 +3,19 @@
 /* All server text is inserted as text nodes via textContent, never parsed as markup. */
 
 const RISK_ICONS = {
-  good: "●",
-  moderate: "◆",
-  unhealthy_sensitive: "▲",
-  unhealthy: "■",
-  very_unhealthy: "⬣",
-  hazardous: "✖",
+  good: "🟢",
+  moderate: "🟡",
+  unhealthy_sensitive: "🟠",
+  unhealthy: "🔴",
+  very_unhealthy: "🟣",
+  hazardous: "⚫",
+};
+
+const MEMBER_ICONS = {
+  "Children": "👧",
+  "Older adults": "👴",
+  "Adults with asthma, COPD or heart conditions": "💊",
+  "Adults": "🧑",
 };
 
 const COST_LABELS = {
@@ -16,6 +23,13 @@ const COST_LABELS = {
   low: "Low cost",
   medium: "Medium cost",
   high: "Higher cost",
+};
+
+const COST_CLASSES = {
+  free: "cost-free",
+  low: "cost-low",
+  medium: "cost-medium",
+  high: "cost-high",
 };
 
 const EXAMPLE = {
@@ -40,6 +54,9 @@ function el(tag, options = {}, children = []) {
   const node = document.createElement(tag);
   if (options.className) node.className = options.className;
   if (options.text !== undefined) node.textContent = options.text;
+  if (options.id) node.id = options.id;
+  if (options.role) node.setAttribute("role", options.role);
+  for (const [k, v] of Object.entries(options.attrs || {})) node.setAttribute(k, v);
   for (const child of children) node.append(child);
   return node;
 }
@@ -131,87 +148,213 @@ function round(value, digits = 0) {
   return Math.round(value * factor) / factor;
 }
 
+/* ─── AQI GAUGE ──────────────────────────────────────────────────────── */
+function drawAqiGauge(canvas, aqi, level) {
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const size = 120;
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.width = size + "px";
+  canvas.style.height = size + "px";
+  ctx.scale(dpr, dpr);
+
+  const cx = size / 2, cy = size / 2;
+  const outerR = 52, innerR = 36;
+  const startAngle = Math.PI * 0.75;
+  const totalAngle = Math.PI * 1.5;
+
+  const COLORS = {
+    good: "#4ade80",
+    moderate: "#fbbf24",
+    unhealthy_sensitive: "#fb923c",
+    unhealthy: "#f87171",
+    very_unhealthy: "#c084fc",
+    hazardous: "#fb7185",
+  };
+
+  // Track background
+  ctx.beginPath();
+  ctx.arc(cx, cy, (outerR + innerR) / 2, startAngle, startAngle + totalAngle);
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = outerR - innerR;
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  // AQI fill (0–500 scale)
+  const pct = Math.min(aqi / 500, 1);
+  const color = COLORS[level] || "#00e5b8";
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, (outerR + innerR) / 2, startAngle, startAngle + totalAngle * pct);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = outerR - innerR;
+  ctx.lineCap = "round";
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // AQI number
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = color;
+  ctx.font = `800 24px 'Inter', system-ui, sans-serif`;
+  ctx.fillText(aqi, cx, cy - 5);
+
+  ctx.fillStyle = "rgba(255,255,255,0.45)";
+  ctx.font = `600 10px 'Inter', system-ui, sans-serif`;
+  ctx.fillText("AQI", cx, cy + 13);
+}
+
+/* ─── TYPEWRITER EFFECT ──────────────────────────────────────────────── */
+function typewriterEffect(element, text, speed = 18) {
+  element.textContent = "";
+  element.classList.add("typing");
+  let i = 0;
+  function next() {
+    if (i < text.length) {
+      element.textContent += text[i++];
+      setTimeout(next, speed);
+    } else {
+      element.classList.remove("typing");
+    }
+  }
+  next();
+}
+
+/* ─── RENDER ─────────────────────────────────────────────────────────── */
 function render(data) {
+  // Risk card
   const risk = $("risk");
   risk.dataset.level = data.risk.level;
   $("risk-icon").textContent = RISK_ICONS[data.risk.level] || "●";
   $("risk-label").textContent = data.risk.label;
   $("risk-headline").textContent = data.risk.headline;
   $("stat-pm25").textContent = `${round(data.air.pm25, 1)} µg/m³`;
-  $("stat-aqi").textContent = `${data.air.aqi} (${data.air.category_label})`;
-  $("stat-who").textContent = `${data.air.times_who_guideline}× guideline`;
+  $("stat-aqi").textContent = `${data.air.aqi} · ${data.air.category_label}`;
+  $("stat-who").textContent = `${data.air.times_who_guideline}×`;
 
   const place = data.place.country ? `${data.place.name}, ${data.place.country}` : data.place.name;
-  const when = data.air.observed_at ? ` Observed ${data.air.observed_at}.` : "";
-  $("air-source").textContent = `${place}. Source: ${data.air.source}.${when}`;
+  const when = data.air.observed_at ? ` · ${data.air.observed_at}` : "";
+  const sourceText = $("air-source");
+  clearNode(sourceText);
+  sourceText.append(
+    el("span", { text: "📍 " }),
+    el("span", { text: `${place}  ·  ${data.air.source}${when}` })
+  );
 
-  $("summary").textContent = data.explanation.summary;
-  $("summary-source").textContent =
-    data.explanation.source === "gemini"
-      ? "Explained by Gemini from the numbers computed here."
-      : "Written from the numbers computed here.";
+  // AQI gauge
+  const gaugeCanvas = $("aqi-gauge");
+  if (gaugeCanvas && gaugeCanvas.getContext) {
+    requestAnimationFrame(() => drawAqiGauge(gaugeCanvas, data.air.aqi, data.risk.level));
+  }
 
+  // Explanation + badge
+  const badge = $("explanation-badge");
+  const summaryEl = $("summary");
+  if (data.explanation.source === "gemini") {
+    badge.textContent = "✨ Explained by Gemini AI";
+    badge.className = "explanation-badge gemini-powered";
+    $("header-gemini-badge").hidden = false;
+    // Typewriter reveal for Gemini content
+    setTimeout(() => typewriterEffect(summaryEl, data.explanation.summary, 15), 100);
+  } else {
+    badge.textContent = "📊 Written from computed numbers";
+    badge.className = "explanation-badge rules-powered";
+    summaryEl.textContent = data.explanation.summary;
+  }
+
+  // Exposure bars (animate after short delay)
   const before = data.dose.total_ug;
   const after = before * (1 - data.combined_reduction_pct / 100);
   const scale = Math.max(before, 1);
-  $("bar-before").style.width = "100%";
-  $("bar-after").style.width = `${Math.max(2, (after / scale) * 100)}%`;
   $("val-before").textContent = `${round(before)} µg`;
   $("val-after").textContent = `${round(after)} µg`;
+
+  // Start bars at 0, then animate
+  $("bar-before").style.width = "0%";
+  $("bar-after").style.width = "0%";
+  setTimeout(() => {
+    $("bar-before").style.width = "100%";
+    $("bar-after").style.width = `${Math.max(2, (after / scale) * 100)}%`;
+  }, 300);
+
   $("impact-text").textContent =
     data.combined_reduction_pct >= 1
-      ? `Doing all of the steps below could cut your daily exposure by about ${round(data.combined_reduction_pct)}%.`
+      ? `✅ Doing all steps below could cut your daily exposure by about ${round(data.combined_reduction_pct)}%.`
       : "Your current habits are already close to the best you can do on today's air.";
 
   const parts = $("dose-parts");
   clearNode(parts);
   for (const [label, value] of [
-    ["At home", data.dose.home_ug],
-    ["Commuting", data.dose.commute_ug],
-    ["Exercising outdoors", data.dose.exercise_ug],
+    ["🏠 At home", data.dose.home_ug],
+    ["🚌 Commuting", data.dose.commute_ug],
+    ["🏃 Exercising outdoors", data.dose.exercise_ug],
   ]) {
-    parts.append(el("li", { text: `${label}: about ${round(value)} µg` }));
+    if (value > 0) {
+      parts.append(el("li", { text: `${label}: about ${round(value, 1)} µg` }));
+    }
   }
 
+  // Action list
   const list = $("actions");
   clearNode(list);
   $("no-actions").hidden = data.actions.length > 0;
   for (const action of data.actions) {
     const badges = el("div", { className: "badges" }, [
-      el("span", { className: "badge", text: COST_LABELS[action.cost_tier] || action.cost_tier }),
+      el("span", { className: `badge ${COST_CLASSES[action.cost_tier] || ""}`, text: COST_LABELS[action.cost_tier] || action.cost_tier }),
     ]);
     if (action.exposure_reduction_pct > 0) {
       badges.append(
         el("span", {
           className: "badge impact",
-          text: `Cuts exposure about ${round(action.exposure_reduction_pct)}% (${round(action.exposure_reduction_ug, 1)} µg/day)`,
+          text: `↓ ${round(action.exposure_reduction_pct)}% exposure (${round(action.exposure_reduction_ug, 1)} µg/day)`,
         }),
       );
     }
     if (action.co2e_kg_saved_per_day > 0) {
-      badges.append(el("span", { className: "badge", text: `Saves about ${action.co2e_kg_saved_per_day} kg CO₂e/day` }));
+      badges.append(el("span", { className: "badge", text: `🌱 Saves ~${action.co2e_kg_saved_per_day} kg CO₂e/day` }));
     }
+    const noteEl = action.note ? el("p", { className: "muted small", text: action.note }) : null;
     list.append(
       el("li", { className: "action" }, [
         el("h4", { text: action.title }),
         el("p", { text: action.detail }),
+        ...(noteEl ? [noteEl] : []),
         badges,
       ]),
     );
   }
 
-  $("window-text").textContent = data.clean_window.advice;
+  // Clean window
+  const windowEl = $("window-text");
+  clearNode(windowEl);
+  windowEl.append(el("span", { text: data.clean_window.advice }));
 
+  // Member guidance
   const members = $("members");
   clearNode(members);
   for (const note of data.member_notes) {
-    members.append(el("dt", { text: note.group }), el("dd", { text: note.advice }));
+    const icon = MEMBER_ICONS[note.group] || "👤";
+    const item = el("div", { className: "member-item" }, [
+      el("span", { className: "member-icon", text: icon }),
+      el("div", {}, [
+        el("dt", { className: "member-name", text: note.group }),
+        el("dd", { className: "member-advice", text: note.advice }),
+      ]),
+    ]);
+    members.append(item);
   }
 
-  $("community-text").textContent =
-    data.community.co2e_kg_saved_per_day > 0
-      ? `If all ${data.community.households} households made the changes that cut emissions, you would avoid about ${data.community.co2e_kg_saved_per_day} kg of CO₂e every day, and fewer tailpipes and fires means cleaner air on your street.`
-      : `Cleaner air is a shared effort. Here are steps your ${data.community.households} households can take together.`;
+  // Community
+  const communityText = $("community-text");
+  if (data.community.co2e_kg_saved_per_day > 0) {
+    communityText.textContent = `If all ${data.community.households} households made the changes that cut emissions, you would avoid about ${data.community.co2e_kg_saved_per_day} kg of CO₂e every day — meaning fewer tailpipes and fires and cleaner air for the whole street.`;
+  } else {
+    communityText.textContent = `Cleaner air is a shared effort. Here are steps your ${data.community.households} households can take together.`;
+  }
+
   const pledges = $("pledges");
   clearNode(pledges);
   for (const pledge of data.community.pledges) pledges.append(el("li", { text: pledge }));
@@ -219,6 +362,7 @@ function render(data) {
   $("disclaimer").textContent = data.disclaimer;
 }
 
+/* ─── API ─────────────────────────────────────────────────────────────── */
 async function requestAdvice(body) {
   const response = await fetch("/api/advice", {
     method: "POST",
@@ -239,6 +383,7 @@ async function requestAdvice(body) {
   return payload;
 }
 
+/* ─── SUBMIT ─────────────────────────────────────────────────────────── */
 async function onSubmit(event) {
   event.preventDefault();
   const body = readForm();
@@ -247,18 +392,25 @@ async function onSubmit(event) {
   if (problems.length) return;
 
   const button = $("submit");
+  const btnText = button.querySelector(".btn-text");
   button.disabled = true;
-  button.textContent = "Working…";
+  button.classList.add("loading");
+  btnText.textContent = "Fetching…";
   $("status").textContent = "Fetching air quality and building your plan.";
+  $("results").hidden = true;
+  $("skeleton-results").hidden = false;
+
   try {
     const data = await requestAdvice(body);
+    $("skeleton-results").hidden = true;
     render(data);
     const results = $("results");
     results.hidden = false;
     $("status").textContent = `Your plan is ready. Air quality is ${data.risk.label.toLowerCase()}.`;
     results.focus({ preventScroll: true });
-    results.scrollIntoView({ behavior: "auto", block: "start" });
+    results.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
+    $("skeleton-results").hidden = true;
     const messages = error.fieldErrors && error.fieldErrors.length
       ? error.fieldErrors.map((e) => ({ id: "city", message: e.message }))
       : [{ id: "city", message: error.message }];
@@ -266,10 +418,12 @@ async function onSubmit(event) {
     $("status").textContent = "We couldn't build your plan.";
   } finally {
     button.disabled = false;
-    button.textContent = "Get my plan";
+    button.classList.remove("loading");
+    btnText.textContent = "Get my plan";
   }
 }
 
+/* ─── EXAMPLE ────────────────────────────────────────────────────────── */
 function fillExample() {
   $("city").value = EXAMPLE.city;
   $("adults").value = EXAMPLE.adults;

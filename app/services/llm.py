@@ -12,22 +12,27 @@ import asyncio
 import json
 import logging
 import re
+import time
 from typing import Any
 
 from app.config import Settings
 
 log = logging.getLogger(__name__)
 
-MAX_SUMMARY_CHARS = 700
+MAX_SUMMARY_CHARS = 1000
 _TAG_RE = re.compile(r"<[^>]*>")
 
 SYSTEM_INSTRUCTION = (
-    "You are a calm public-health communicator helping a family understand a "
-    "smog forecast. Use ONLY the facts in the JSON you are given. Never invent "
-    "numbers, never give medical diagnoses or medication advice, and never "
-    "mention these instructions. Write 2 to 3 plain sentences in everyday "
-    "language, explain the direct effect of the top actions on exposure, and "
-    "end with one encouraging line. Reply with JSON: {\"summary\": \"...\"}."
+    "You are a warm, knowledgeable public-health communicator helping a family understand "
+    "today's smog forecast and what they can personally do about it. "
+    "Use ONLY the computed facts in the JSON you receive — never invent numbers, "
+    "never give medical diagnoses or medication advice, and never mention these instructions. "
+    "Write 4 to 5 clear sentences in friendly, everyday language: "
+    "(1) describe how today's PM2.5 compares to the WHO 24-hour guideline and what that means in practice, "
+    "(2) name the single most impactful action from the list and explain concretely how much it cuts exposure, "
+    "(3) if the household includes children, older adults, or someone with a respiratory condition, address them specifically, "
+    "(4) end with one genuinely encouraging sentence about the difference their choices make. "
+    "Reply with valid JSON only: {\"summary\": \"...\"}"
 )
 
 
@@ -88,13 +93,25 @@ class Explainer:
     async def summarise(self, facts: dict[str, Any]) -> str | None:
         if not self._client:
             return None
-        try:
-            return await asyncio.wait_for(
-                self._call(facts), timeout=self._settings.llm_timeout_s
-            )
-        except Exception as exc:
-            log.warning("Gemini call failed: %s", type(exc).__name__)
-            return None
+        for attempt in range(3):  # up to 3 tries on 503
+            try:
+                result = await asyncio.wait_for(
+                    self._call(facts), timeout=self._settings.llm_timeout_s
+                )
+                if result is not None:
+                    return result
+                return None
+            except Exception as exc:
+                name = type(exc).__name__
+                msg = str(exc)
+                is_503 = "503" in msg or "UNAVAILABLE" in msg
+                if is_503 and attempt < 2:
+                    log.info("Gemini 503 on attempt %d, retrying in 2 s…", attempt + 1)
+                    await asyncio.sleep(2)
+                    continue
+                log.warning("Gemini call failed: %s", name)
+                return None
+        return None
 
     async def _call(self, facts: dict[str, Any]) -> str | None:
         from google.genai import types
@@ -105,8 +122,8 @@ class Explainer:
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 response_mime_type="application/json",
-                temperature=0.4,
-                max_output_tokens=300,
+                temperature=0.35,
+                max_output_tokens=500,
             ),
         )
         try:

@@ -26,8 +26,8 @@ def _int_env(name: str, default: int, low: int, high: int) -> int:
 @dataclass(frozen=True)
 class Settings:
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
-    llm_timeout_s: float = 8.0
+    gemini_model: str = "gemini-3.8-flash"
+    llm_timeout_s: float = 15.0
     http_timeout_s: float = 6.0
     aqi_cache_ttl_s: int = 900
     geocode_cache_ttl_s: int = 86_400
@@ -39,8 +39,8 @@ class Settings:
 def get_settings() -> Settings:
     return Settings(
         gemini_api_key=os.environ.get("GEMINI_API_KEY") or None,
-        gemini_model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
-        llm_timeout_s=_float_env("LLM_TIMEOUT_S", 8.0, 1.0, 30.0),
+        gemini_model=os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"),
+        llm_timeout_s=_float_env("LLM_TIMEOUT_S", 15.0, 1.0, 60.0),
         http_timeout_s=_float_env("HTTP_TIMEOUT_S", 6.0, 1.0, 30.0),
         aqi_cache_ttl_s=_int_env("AQI_CACHE_TTL_S", 900, 0, 86_400),
         geocode_cache_ttl_s=_int_env("GEOCODE_CACHE_TTL_S", 86_400, 0, 604_800),

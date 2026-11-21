@@ -3,10 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Breathe Budget – smog-smart plans for your family</title>
-  <meta name="description" content="Enter your city and household. Get live air quality, a ranked list of low-cost ways to breathe less smog, and the estimated impact of each choice.">
-  <meta name="color-scheme" content="light dark">
+  <title>Breathe Budget – Smog-smart plans for your family</title>
+  <meta name="description" content="Enter your city and household details. Get live PM2.5 / AQI, a ranked list of low-cost actions, and the estimated drop in pollution you breathe — powered by Gemini AI.">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0a0f0e">
   <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -14,34 +17,42 @@
 
   <header class="site-header">
     <div class="wrap">
-      <p class="brand">Breathe Budget</p>
-      <p class="tagline">Smog-smart routines for your family and neighbourhood, with the impact of every choice shown.</p>
+      <div class="header-inner">
+        <span class="brand-icon" aria-hidden="true">🌿</span>
+        <div class="brand-text">
+          <p class="brand">Breathe Budget</p>
+          <p class="tagline">Smog-smart routines for your family, with the impact of every choice shown</p>
+        </div>
+        <span class="gemini-badge" id="header-gemini-badge" hidden>
+          <span aria-hidden="true">✨</span> Gemini AI
+        </span>
+      </div>
     </div>
   </header>
 
   <main id="main" class="wrap" tabindex="-1">
     <section aria-labelledby="form-title" class="card">
       <h1 id="form-title">Plan a cleaner-air day</h1>
-      <p class="muted">We use your city's live air-quality forecast and a simple exposure model. Nothing you type is stored.</p>
+      <p class="form-intro">We use your city's live air-quality forecast and a simple exposure model. Nothing you type is stored.</p>
 
       <div id="form-errors" class="error-summary" role="alert" hidden></div>
 
       <form id="advice-form" novalidate>
         <fieldset>
-          <legend>Where do you live?</legend>
+          <legend>📍 Where do you live?</legend>
           <div class="field">
             <label for="city">City</label>
             <input id="city" name="city" type="text" required minlength="2" maxlength="80"
-                   autocomplete="address-level2" placeholder="e.g. Delhi, Lahore, Beijing" aria-describedby="city-hint">
-            <p id="city-hint" class="hint">Letters only. We look it up with a public geocoder.</p>
+                   autocomplete="address-level2" placeholder="e.g. Delhi, Lahore, Beijing, Mumbai" aria-describedby="city-hint">
+            <p id="city-hint" class="hint">Letters and spaces only — we geocode it via a public API.</p>
           </div>
         </fieldset>
 
         <fieldset>
-          <legend>Who is in your household?</legend>
+          <legend>👨‍👩‍👧 Who is in your household?</legend>
           <div class="grid">
             <div class="field">
-              <label for="adults">Adults</label>
+              <label for="adults">Adults (18–64)</label>
               <input id="adults" name="adults" type="number" inputmode="numeric" min="0" max="10" value="2">
             </div>
             <div class="field">
@@ -60,7 +71,7 @@
         </fieldset>
 
         <fieldset>
-          <legend>Your day</legend>
+          <legend>🌅 Your typical day</legend>
           <div class="grid">
             <div class="field">
               <label for="commute_mode">How do you usually travel?</label>
@@ -80,7 +91,7 @@
               <input id="commute_minutes" name="commute_minutes_each_way" type="number" inputmode="numeric" min="0" max="240" value="0">
             </div>
             <div class="field">
-              <label for="exercise">Outdoor exercise (minutes a day)</label>
+              <label for="exercise">Outdoor exercise (min/day)</label>
               <input id="exercise" name="outdoor_exercise_minutes" type="number" inputmode="numeric" min="0" max="240" value="0">
             </div>
             <div class="field">
@@ -101,7 +112,7 @@
               </select>
             </div>
             <div class="field">
-              <label for="neighbourhood">Households in your building or lane</label>
+              <label for="neighbourhood">Households in your building/lane</label>
               <input id="neighbourhood" name="neighbourhood_households" type="number" inputmode="numeric" min="1" max="10000" value="50">
             </div>
           </div>
@@ -112,93 +123,129 @@
         </fieldset>
 
         <details class="optional">
-          <summary>Have your own air monitor? (optional)</summary>
-          <div class="field">
+          <summary>🔬 Have your own air monitor? (optional)</summary>
+          <div class="field" style="margin-top:0.75rem">
             <label for="pm25">PM2.5 reading in µg/m³</label>
             <input id="pm25" name="pm25_override" type="number" inputmode="decimal" min="0" max="1000" step="0.1" aria-describedby="pm25-hint">
-            <p id="pm25-hint" class="hint">Leave blank to use live forecast data. If filled in, it replaces the forecast.</p>
+            <p id="pm25-hint" class="hint">Leave blank to use live forecast data. Filled in, it replaces the forecast.</p>
           </div>
         </details>
 
-        <div class="actions">
-          <button id="submit" type="submit" class="btn primary">Get my plan</button>
-          <button id="example" type="button" class="btn secondary">Try an example family</button>
+        <div class="form-actions">
+          <button id="submit" type="submit" class="btn primary">
+            <span class="btn-text">Get my plan</span>
+          </button>
+          <button id="example" type="button" class="btn secondary">
+            Try example family
+          </button>
         </div>
       </form>
     </section>
 
     <p id="status" class="sr-only" role="status" aria-live="polite"></p>
 
-    <section id="results" aria-labelledby="results-title" tabindex="-1" hidden>
-      <h2 id="results-title" class="results-title">Your plan</h2>
+    <!-- Skeleton loader shown while fetching -->
+    <section id="skeleton-results" hidden aria-hidden="true">
+      <div class="skeleton-card">
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-line skeleton-text-1"></div>
+        <div class="skeleton skeleton-line skeleton-text-2"></div>
+        <div class="skeleton skeleton-line skeleton-text-3"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-line skeleton-text-1"></div>
+        <div class="skeleton skeleton-line skeleton-text-2"></div>
+      </div>
+    </section>
 
-      <div id="risk" class="risk card" role="group" aria-labelledby="risk-label">
+    <section id="results" aria-labelledby="results-title" tabindex="-1" hidden>
+      <h2 id="results-title" class="results-title">Your air quality plan</h2>
+
+      <!-- Risk Card -->
+      <div id="risk" class="risk card results-animate" role="group" aria-labelledby="risk-label">
         <p class="risk-eyebrow">Today's risk for your household</p>
-        <p class="risk-label"><span id="risk-icon" class="risk-icon" aria-hidden="true"></span><span id="risk-label"></span></p>
-        <p id="risk-headline" class="risk-headline"></p>
-        <dl class="stats">
-          <div><dt>PM2.5</dt><dd id="stat-pm25"></dd></div>
-          <div><dt>AQI</dt><dd id="stat-aqi"></dd></div>
-          <div><dt>Compared with WHO daily guideline</dt><dd id="stat-who"></dd></div>
-        </dl>
-        <p id="air-source" class="muted small"></p>
+        <div class="risk-content">
+          <div>
+            <p class="risk-label">
+              <span id="risk-icon" class="risk-icon" aria-hidden="true"></span>
+              <span id="risk-label"></span>
+            </p>
+            <p id="risk-headline" class="risk-headline"></p>
+            <dl class="stats">
+              <div><dt>PM2.5</dt><dd id="stat-pm25"></dd></div>
+              <div><dt>AQI</dt><dd id="stat-aqi"></dd></div>
+              <div><dt>vs WHO guideline</dt><dd id="stat-who"></dd></div>
+            </dl>
+            <p id="air-source" class="air-source-text"></p>
+          </div>
+          <canvas id="aqi-gauge" width="120" height="120" aria-hidden="true"></canvas>
+        </div>
       </div>
 
-      <section class="card" aria-labelledby="summary-title">
-        <h3 id="summary-title">In plain words</h3>
+      <!-- Explanation Card -->
+      <section class="card explanation-card results-animate" aria-labelledby="summary-title" style="animation-delay:0.08s">
+        <div class="explanation-header">
+          <h3 id="summary-title">In plain words</h3>
+          <span id="explanation-badge" class="explanation-badge"></span>
+        </div>
         <p id="summary"></p>
-        <p id="summary-source" class="muted small"></p>
       </section>
 
-      <section class="card" aria-labelledby="impact-title">
+      <!-- Exposure Impact -->
+      <section class="card results-animate" aria-labelledby="impact-title" style="animation-delay:0.12s">
         <h3 id="impact-title">What you breathe in a day</h3>
-        <p class="muted">Estimated PM2.5 inhaled by one adult in your household, before and after the steps below.</p>
+        <p class="muted small">Estimated PM2.5 inhaled by one adult in your household, before and after the steps below.</p>
         <div class="bars">
           <div class="bar-row">
             <span class="bar-label">Today's habits</span>
-            <span class="bar" aria-hidden="true"><span id="bar-before" class="bar-fill before"></span></span>
+            <span class="bar" aria-hidden="true"><span id="bar-before" class="bar-fill before" style="width:0%"></span></span>
             <span id="val-before" class="bar-value"></span>
           </div>
           <div class="bar-row">
             <span class="bar-label">With all steps</span>
-            <span class="bar" aria-hidden="true"><span id="bar-after" class="bar-fill after"></span></span>
+            <span class="bar" aria-hidden="true"><span id="bar-after" class="bar-fill after" style="width:0%"></span></span>
             <span id="val-after" class="bar-value"></span>
           </div>
         </div>
         <p id="impact-text" class="impact-text"></p>
-        <ul id="dose-parts" class="plain-list"></ul>
+        <ul id="dose-parts" class="dose-breakdown"></ul>
       </section>
 
-      <section class="card" aria-labelledby="actions-title">
+      <!-- Actions -->
+      <section class="card results-animate" aria-labelledby="actions-title" style="animation-delay:0.16s">
         <h3 id="actions-title">Your ranked actions</h3>
-        <p class="muted">Ordered by how much exposure each one removes. Cost is shown in words, not just colour.</p>
+        <p class="muted small">Ordered by how much exposure each one removes. Cost tier is shown on every card.</p>
         <ol id="actions" class="action-list"></ol>
-        <p id="no-actions" class="muted" hidden>The air is clean enough that no extra steps are needed. Keep up your low-emission habits.</p>
+        <p id="no-actions" class="muted" hidden>The air is clean enough that no extra steps are needed. Keep up your low-emission habits!</p>
       </section>
 
-      <section class="card" aria-labelledby="window-title">
-        <h3 id="window-title">Cleanest time today</h3>
-        <p id="window-text"></p>
+      <!-- Clean Window -->
+      <section class="card results-animate" aria-labelledby="window-title" style="animation-delay:0.2s">
+        <h3 id="window-title">🕐 Cleanest time today</h3>
+        <p id="window-text" class="window-text"></p>
       </section>
 
-      <section class="card" aria-labelledby="members-title">
+      <!-- Member Guidance -->
+      <section class="card results-animate" aria-labelledby="members-title" style="animation-delay:0.24s">
         <h3 id="members-title">Guidance for each family member</h3>
         <dl id="members" class="members"></dl>
       </section>
 
-      <section class="card" aria-labelledby="community-title">
-        <h3 id="community-title">Together with your neighbours</h3>
-        <p id="community-text"></p>
-        <ul id="pledges" class="plain-list"></ul>
+      <!-- Community -->
+      <section class="card results-animate" aria-labelledby="community-title" style="animation-delay:0.28s">
+        <h3 id="community-title">🏘️ Together with your neighbours</h3>
+        <p id="community-text" class="community-stat"></p>
+        <ul id="pledges" class="pledge-list"></ul>
       </section>
 
-      <p id="disclaimer" class="muted small disclaimer"></p>
+      <p id="disclaimer" class="disclaimer"></p>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="wrap">
-      <p>Air data: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> (CAMS). Thresholds: US EPA AQI and WHO 2021 guidelines.</p>
+      <p>Air data: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> (CAMS). Thresholds: US EPA AQI &amp; WHO 2021 guidelines. Explanation: Gemini AI.</p>
     </div>
   </footer>
 

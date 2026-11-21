@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings, get_settings
 from app.ratelimit import RateLimiter, client_ip
-from app.routers import advice
+from app.routers import advice, chat
 from app.services.aqi_client import AirQualityClient
 from app.services.llm import Explainer
 
@@ -22,7 +22,10 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 SECURITY_HEADERS = {
     "Content-Security-Policy": (
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+        "default-src 'self'; script-src 'self'; "
+        "style-src 'self' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
         "connect-src 'self'; object-src 'none'; base-uri 'none'; "
         "frame-ancestors 'none'; form-action 'self'"
     ),
@@ -94,6 +97,7 @@ def create_app(
         return JSONResponse({"detail": "Please check the form.", "errors": problems}, 422)
 
     app.include_router(advice.router)
+    app.include_router(chat.router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     @app.get("/", include_in_schema=False)
